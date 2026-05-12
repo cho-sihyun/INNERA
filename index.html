@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>INNERA Square</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="top-bar">
+      <div class="title">INNĒRA</div>
+      <div class="header-right">
+        <span class="pill">SQUARE</span>
+        <span class="pill active">ACTIVE</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="content-panel">
+        <div class="canvas-frame">
+          <canvas id="squareCanvas" width="960" height="760"></canvas>
+          <div class="screen-label">INNĒRA SQUARE</div>
+        </div>
+
+        <aside class="info-panel">
+          <h2>아이소메트릭 광장</h2>
+          <p>이 데모는 이미지 기반 광장 레이아웃을 참고해 제작된 아이소메트릭 타일 맵입니다.</p>
+          <ul>
+            <li>화살표 또는 WASD로 선택된 캐릭터 이동</li>
+            <li>클릭으로 캐릭터 선택</li>
+            <li>사물은 통과 불가</li>
+            <li>도트픽셀 캐릭터 디자인은 추후 교체 가능</li>
+          </ul>
+
+          <div class="legend-box">
+            <h3>레이어</h3>
+            <div class="legend-item"><span class="legend-color floor"></span>바닥</div>
+            <div class="legend-item"><span class="legend-color bench"></span>벤치 / 가로등</div>
+            <div class="legend-item"><span class="legend-color tree"></span>나무</div>
+            <div class="legend-item"><span class="legend-color building"></span>건물 외벽</div>
+            <div class="legend-item"><span class="legend-color monument"></span>중앙 오브젝트</div>
+          </div>
+
+          <div class="controls-box">
+            <h3>컨트롤</h3>
+            <p>캐릭터를 클릭 또는 터치하여 선택합니다.</p>
+            <p>이동 키: <strong>← ↑ ↓ → / A W S D</strong></p>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
