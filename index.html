@@ -4,7 +4,154 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>INNERA - 방꾸미기</title>
-  <link rel="stylesheet" href="style.css" />
+  <style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: #1a0812;
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  color: #fff;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ── 헤더 ── */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: #200a14;
+  border-bottom: 1px solid #441828;
+  flex-shrink: 0;
+}
+.logo {
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #ffb8cc;
+}
+.header-actions { display: flex; gap: 8px; }
+.icon-btn {
+  padding: 7px 14px;
+  border: 1px solid #884060;
+  border-radius: 20px;
+  background: #301020;
+  color: #ffb8cc;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: background 0.15s;
+}
+.icon-btn:hover { background: #481828; }
+.save-btn { background: #c04060; color: #fff; border-color: #c04060; }
+.save-btn:hover { background: #a02848; }
+
+/* ── 방 영역 ── */
+.room-wrap {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  position: relative;
+  background: #1a0812;
+  min-height: 500px;
+}
+
+#roomCanvas {
+  display: block;
+  image-rendering: pixelated;
+  cursor: crosshair;
+  border-radius: 12px;
+  /* 뷰포트보다 크면 축소 */
+  max-width: calc(100vw - 32px);
+}
+
+/* ── 가구 패널 ── */
+.furniture-panel {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 260px;
+  max-height: calc(100% - 20px);
+  background: rgba(24, 6, 15, 0.97);
+  border: 1px solid #884060;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+}
+.furniture-panel.hidden { display: none; }
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px 6px;
+  border-bottom: 1px solid #441828;
+  color: #ffb8cc;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.panel-header button {
+  background: none; border: none; color: #ffb8cc;
+  cursor: pointer; font-size: 1rem; opacity: 0.7;
+}
+.panel-header button:hover { opacity: 1; }
+
+.hint {
+  padding: 4px 14px 6px;
+  font-size: 0.7rem;
+  color: #885060;
+  flex-shrink: 0;
+}
+
+.furniture-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  padding: 8px 10px 12px;
+  overflow-y: auto;
+}
+
+.furniture-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 4px;
+  border: 1px solid #441828;
+  border-radius: 10px;
+  background: #200a14;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: all 0.12s;
+}
+.furniture-item:hover {
+  background: #3a1028;
+  border-color: #884060;
+  transform: translateY(-1px);
+}
+.furniture-item canvas { image-rendering: pixelated; }
+.furniture-item span { font-size: 0.68rem; color: #ffb8cc; }
+
+/* ── 상태바 ── */
+.status-bar {
+  padding: 5px 20px;
+  font-size: 0.78rem;
+  color: #885060;
+  background: #12050c;
+  text-align: center;
+  flex-shrink: 0;
+  min-height: 28px;
+}
+  </style>
 </head>
 <body>
   <div id="app">
@@ -16,10 +163,8 @@
         <button id="btnSave" class="icon-btn save-btn">💾 저장</button>
       </div>
     </header>
-
     <div class="room-wrap">
       <canvas id="roomCanvas"></canvas>
-
       <div id="furniturePanel" class="furniture-panel hidden">
         <div class="panel-header">
           <span>가구 선택</span>
@@ -29,9 +174,686 @@
         <div class="furniture-grid" id="furnitureGrid"></div>
       </div>
     </div>
-
-    <div class="status-bar" id="statusBar">우상단 [가구] 버튼을 눌러 가구를 배치하세요!</div>
+    <div class="status-bar" id="statusBar">로딩 중...</div>
   </div>
-  <script src="script.js"></script>
+  <script>
+// ── 오류 감지: JS 오류 발생시 상태바에 표시 ───────────────────────
+window.addEventListener("error", function(e) {
+  var sb = document.getElementById("statusBar");
+  if (!sb) return;
+  sb.style.background = "#800010";
+  sb.style.color = "#fff";
+  sb.textContent = "JS 오류: " + e.message + "  (line " + e.lineno + ")";
+});
+
+// ── 캔버스 ───────────────────────────────────────────────────────
+var canvas = document.getElementById("roomCanvas");
+var ctx    = canvas.getContext("2d");
+var W = 800, H = 600;
+canvas.width  = W;
+canvas.height = H;
+
+// ── 아이소메트릭 상수 ─────────────────────────────────────────────
+var TW    = 80;
+var TH    = 40;
+var COLS  = 8;
+var ROWS  = 6;
+var WALLH = 175;
+var OX    = 400;
+var OY    = 195;
+
+function isoXY(col, row) {
+  return {
+    x: OX + (col - row) * TW / 2,
+    y: OY + (col + row) * TH / 2
+  };
+}
+
+function xyToIso(sx, sy) {
+  var dx = sx - OX, dy = sy - OY;
+  var col = Math.round((dx / (TW / 2) + dy / (TH / 2)) / 2);
+  var row = Math.round((dy / (TH / 2) - dx / (TW / 2)) / 2);
+  return {
+    col: Math.max(0, Math.min(COLS - 1, col)),
+    row: Math.max(0, Math.min(ROWS - 1, row))
+  };
+}
+
+function clientToCanvas(cx, cy) {
+  var r = canvas.getBoundingClientRect();
+  return {
+    x: (cx - r.left) * (W / r.width),
+    y: (cy - r.top)  * (H / r.height)
+  };
+}
+
+function onCanvas(cx, cy) {
+  var r = canvas.getBoundingClientRect();
+  return cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom;
+}
+
+// ── 픽셀아트 헬퍼 ────────────────────────────────────────────────
+function p(c, color, x, y, w, h) {
+  c.fillStyle = color;
+  c.fillRect(x, y, w, h);
+}
+
+function mkSprite(fn, w, h) {
+  var src = document.createElement("canvas");
+  src.width = w; src.height = h;
+  fn(src.getContext("2d"));
+  var dst = document.createElement("canvas");
+  dst.width = w * 4; dst.height = h * 4;
+  var dc = dst.getContext("2d");
+  dc.imageSmoothingEnabled = false;
+  dc.drawImage(src, 0, 0, w * 4, h * 4);
+  return dst;
+}
+
+// ════════════════════════════════════════════════════
+//  스프라이트
+// ════════════════════════════════════════════════════
+var SP = {};
+
+SP.bed = mkSprite(function(c) {
+  p(c,"#c04868",0,0,24,7);   // 헤드보드
+  p(c,"#d05878",1,1,22,5);
+  p(c,"#e06888",2,2,20,3);
+  p(c,"#d05878",0,6,24,17);  // 프레임
+  p(c,"#ffb0c8",1,7,22,13);  // 이불
+  p(c,"#ff98b4",1,17,22,3);
+  p(c,"#e898b0",6,8,1,11);   // 주름
+  p(c,"#e898b0",12,8,1,11);
+  p(c,"#e898b0",18,8,1,11);
+  p(c,"#fff0f5",2,8,8,6);    // 베개1
+  p(c,"#ffe0ec",3,9,6,4);
+  p(c,"#e0b8c8",2,8,8,1);
+  p(c,"#e0b8c8",2,8,1,6);
+  p(c,"#fff0f5",14,8,8,6);   // 베개2
+  p(c,"#ffe0ec",15,9,6,4);
+  p(c,"#e0b8c8",14,8,8,1);
+  p(c,"#e0b8c8",14,8,1,6);
+  p(c,"#b03858",0,22,24,2);
+  p(c,"#901838",1,24,4,3);   // 다리
+  p(c,"#901838",19,24,4,3);
+}, 24, 27);
+
+SP.desk = mkSprite(function(c) {
+  p(c,"#2a3040",2,0,12,1);   // 노트북
+  p(c,"#3a4050",2,1,12,5);
+  p(c,"#6080c8",3,2,10,3);
+  p(c,"#fff",5,3,1,1);
+  p(c,"#1a2030",1,6,14,1);
+  p(c,"#fff",15,2,4,4);      // 컵
+  p(c,"#f0e0e0",16,3,2,2);
+  p(c,"#ddd",15,6,4,1);
+  p(c,"#e0a868",0,7,22,3);   // 상판
+  p(c,"#f0b878",0,6,22,1);
+  p(c,"#c08848",0,10,22,1);
+  p(c,"#c88848",0,11,10,14); // 서랍
+  p(c,"#d89858",1,12,8,12);
+  p(c,"#b87838",0,17,10,1);
+  p(c,"#e8b068",3,14,4,2);
+  p(c,"#e8b068",3,19,4,2);
+  p(c,"#c08840",13,11,3,14); // 다리
+  p(c,"#c08840",19,11,3,14);
+}, 22, 25);
+
+SP.bookshelf = mkSprite(function(c) {
+  p(c,"#985838",0,0,16,32);  // 외부
+  p(c,"#b06848",1,1,14,30);  // 내부
+  p(c,"#804828",1,9,14,2);   // 선반
+  p(c,"#804828",1,19,14,2);
+  p(c,"#804828",1,28,14,3);
+  p(c,"#e03838",2,2,2,7); p(c,"#3880e0",4,2,2,7);  // 책1단
+  p(c,"#d0b020",6,2,2,7); p(c,"#38b038",8,2,2,7);
+  p(c,"#b030b0",10,2,2,7); p(c,"#e06020",12,3,2,6);
+  p(c,"#20a870",2,11,3,8); p(c,"#d05020",5,11,3,8); // 책2단
+  p(c,"#5050d0",9,11,2,8); p(c,"#d02050",12,11,2,8);
+  p(c,"#e08818",2,21,3,7); p(c,"#7018b0",6,21,2,7); // 책3단
+  p(c,"#18b080",9,21,3,7); p(c,"#707070",12,22,2,6);
+}, 16, 32);
+
+SP.sofa = mkSprite(function(c) {
+  p(c,"#b86080",0,0,30,13);  // 등받이
+  p(c,"#c87090",1,1,28,11);
+  p(c,"#ffa8c0",2,2,12,9); p(c,"#ffb8cc",3,3,10,7);  // 쿠션L
+  p(c,"#ffa8c0",16,2,12,9); p(c,"#ffb8cc",17,3,10,7); // 쿠션R
+  p(c,"#d888a8",14,2,2,9);   // 가운데
+  p(c,"#c87090",0,13,30,11); // 방석
+  p(c,"#d888a0",1,14,28,9);
+  p(c,"#ffb8cc",1,14,14,9); p(c,"#ffc8d8",2,15,12,7);
+  p(c,"#ffb8cc",16,14,14,9); p(c,"#ffc8d8",17,15,12,7);
+  p(c,"#c87090",15,14,1,10);
+  p(c,"#b86080",0,0,4,24); p(c,"#c87090",1,1,2,22);  // 팔걸이L
+  p(c,"#b86080",26,0,4,24); p(c,"#c87090",27,1,2,22); // 팔걸이R
+  p(c,"#907060",2,24,3,3); p(c,"#907060",25,24,3,3);  // 다리
+}, 30, 27);
+
+SP.plant = mkSprite(function(c) {
+  p(c,"#38a018",3,9,5,4); p(c,"#48b028",4,8,4,3); p(c,"#58c038",5,9,3,2);
+  p(c,"#28900a",2,11,6,2);
+  p(c,"#38a018",8,7,6,5); p(c,"#48b028",9,6,4,4);
+  p(c,"#28900a",7,11,7,2);
+  p(c,"#48b028",5,4,5,5); p(c,"#58c038",6,5,3,3);
+  p(c,"#18780a",5,12,5,2);
+  p(c,"#487828",7,12,2,4);    // 줄기
+  p(c,"#d05030",5,16,8,1);   // 화분 테두리
+  p(c,"#e06040",4,17,10,8);
+  p(c,"#f07050",5,17,8,7);
+  p(c,"#b04020",3,24,12,2);
+  p(c,"#503018",5,16,8,2);   // 흙
+}, 18, 26);
+
+SP.rug = mkSprite(function(c) {
+  p(c,"#f0b0c0",0,0,32,22);  // 바탕
+  p(c,"#c87090",0,0,32,2); p(c,"#c87090",0,20,32,2);
+  p(c,"#c87090",0,0,2,22); p(c,"#c87090",30,0,2,22);
+  p(c,"#e090a8",2,2,28,18);
+  p(c,"#f8c0d0",5,5,22,12);  // 내부
+  p(c,"#ff6090",13,7,6,8);   // 꽃
+  p(c,"#ff80a8",14,8,4,6);
+  p(c,"#ff4080",15,9,2,4);
+  p(c,"#ff80a8",11,9,3,4); p(c,"#ff80a8",18,9,3,4);
+  p(c,"#ff80a8",14,5,4,3); p(c,"#ff80a8",14,14,4,3);
+  p(c,"#e070a0",3,3,4,4); p(c,"#e070a0",25,3,4,4);
+  p(c,"#e070a0",3,15,4,4); p(c,"#e070a0",25,15,4,4);
+}, 32, 22);
+
+SP.lamp = mkSprite(function(c) {
+  p(c,"#ffe090",3,0,10,1);
+  p(c,"#ffd070",2,1,12,1);
+  p(c,"#ffc050",1,2,14,6);
+  p(c,"#ffb030",2,8,12,1);
+  p(c,"#ffa020",3,9,10,1);
+  p(c,"#fff8e8",4,2,8,6);    // 내부 빛
+  p(c,"#b09070",7,10,2,16);  // 폴대
+  p(c,"#907050",3,26,10,2);  // 받침
+  p(c,"#a08060",4,25,8,2);
+  p(c,"#807050",2,28,12,1);
+}, 16, 29);
+
+SP.mirror = mkSprite(function(c) {
+  p(c,"#d4a040",0,0,14,24);  // 금 프레임
+  p(c,"#e8b850",1,1,12,22);
+  p(c,"#c09030",0,0,3,3); p(c,"#c09030",11,0,3,3);   // 코너
+  p(c,"#c09030",0,21,3,3); p(c,"#c09030",11,21,3,3);
+  p(c,"#b0d0e8",2,2,10,19);  // 유리
+  p(c,"#c8e4f4",3,3,7,6);
+  p(c,"#a0c0d8",2,18,10,2);
+  p(c,"#e8f4ff",3,3,4,4);   // 반사
+  p(c,"#c09030",4,24,6,3);  // 받침
+  p(c,"#d0a040",5,24,4,2);
+  p(c,"#b08020",3,26,8,1);
+}, 14, 27);
+
+SP.table = mkSprite(function(c) {
+  p(c,"#fff",1,0,5,5);       // 컵
+  p(c,"#f0d8d8",2,1,3,3);
+  p(c,"#ddd",1,5,5,1);
+  p(c,"#bbb",6,2,1,2);
+  p(c,"#f0e8d0",9,1,7,2);   // 접시
+  p(c,"#e0d0b0",10,2,5,1);
+  p(c,"#f06080",11,0,3,2);
+  p(c,"#80c0f0",17,0,4,5);  // 꽃병
+  p(c,"#a0d8ff",18,0,2,4);
+  p(c,"#50c040",18,0,2,1);  // 꽃
+  p(c,"#e0a858",0,6,22,3);  // 상판
+  p(c,"#f0b868",0,5,22,1);
+  p(c,"#c09848",0,9,22,1);
+  p(c,"#c09040",1,10,4,14); // 다리
+  p(c,"#d0a050",2,11,2,12);
+  p(c,"#c09040",17,10,4,14);
+  p(c,"#d0a050",18,11,2,12);
+}, 22, 24);
+
+SP.window = mkSprite(function(c) {
+  p(c,"#e8c8f8",0,0,4,28); p(c,"#d0a8e8",0,0,3,28);  // 커튼L
+  p(c,"#e8c8f8",18,0,4,28); p(c,"#d0a8e8",19,0,3,28); // 커튼R
+  p(c,"#e0c888",3,0,16,28); // 프레임
+  p(c,"#d0b870",4,1,14,26);
+  p(c,"#080830",5,2,12,22); // 밤하늘
+  p(c,"#101850",5,2,12,7);
+  p(c,"#fff",7,4,1,1); p(c,"#fff",11,3,1,1); p(c,"#fff",14,5,1,1); // 별
+  p(c,"#fff",8,7,1,1); p(c,"#ccd",6,10,1,1); p(c,"#ccd",13,9,1,1);
+  p(c,"#fff",10,12,1,1); p(c,"#ccd",16,11,1,1);
+  p(c,"#ffe090",13,3,5,7);  // 달
+  p(c,"#080830",15,3,4,5);
+  p(c,"#d0b870",11,2,1,22); // 창살
+  p(c,"#d0b870",5,13,12,1);
+  p(c,"#e0c888",3,25,16,3); // 창틀 아래
+  p(c,"#f0d898",4,26,14,2);
+}, 22, 28);
+
+SP.poster = mkSprite(function(c) {
+  p(c,"#e06868",0,0,14,18);  // 액자
+  p(c,"#f07878",1,1,12,16);
+  p(c,"#fff5f8",2,2,10,13);  // 배경
+  p(c,"#fffae8",4,4,6,8);    // 고양이 얼굴
+  p(c,"#fffae8",3,3,3,3); p(c,"#ffccdd",4,4,2,2); // 귀L
+  p(c,"#fffae8",8,3,3,3); p(c,"#ffccdd",8,4,2,2); // 귀R
+  p(c,"#60a030",4,6,2,2); p(c,"#111",5,6,1,1);   // 눈L
+  p(c,"#60a030",8,6,2,2); p(c,"#111",9,6,1,1);   // 눈R
+  p(c,"#ffaacc",6,8,2,1);   // 코
+  p(c,"#aaa",2,8,3,1); p(c,"#aaa",9,8,3,1);      // 수염
+  p(c,"#f090a0",2,14,10,1); // 하단
+}, 14, 18);
+
+// ════════════════════════════════════════════════════
+//  방 배경 그리기
+// ════════════════════════════════════════════════════
+function drawRoom() {
+  // 배경
+  ctx.fillStyle = "#1a0812";
+  ctx.fillRect(0, 0, W, H);
+
+  // 바닥 타일
+  var row, col;
+  for (row = 0; row < ROWS; row++) {
+    for (col = 0; col < COLS; col++) {
+      var s = isoXY(col, row);
+      ctx.beginPath();
+      ctx.moveTo(s.x,          s.y - TH / 2);
+      ctx.lineTo(s.x + TW / 2, s.y);
+      ctx.lineTo(s.x,          s.y + TH / 2);
+      ctx.lineTo(s.x - TW / 2, s.y);
+      ctx.closePath();
+      ctx.fillStyle = (col + row) % 2 === 0 ? "#e8a8b8" : "#d898a8";
+      ctx.fill();
+      ctx.strokeStyle = "#b87888";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+  }
+
+  // 핵심 좌표 계산
+  var farC  = isoXY(0, 0);        // far 코너
+  var botL  = isoXY(0, ROWS);     // 왼쪽 바닥
+  var farR  = isoXY(COLS, 0);     // 오른쪽 far
+
+  var farLx = farC.x - TW / 2;
+  var farTy = farC.y - TH / 2;
+  var botLx = botL.x - TW / 2;
+
+  // 왼쪽 벽
+  ctx.fillStyle = "#f0c0d0";
+  ctx.beginPath();
+  ctx.moveTo(farLx,  farC.y);
+  ctx.lineTo(farC.x, farTy);
+  ctx.lineTo(farC.x, farTy - WALLH);
+  ctx.lineTo(farLx,  farC.y - WALLH);
+  ctx.lineTo(botLx,  botL.y - WALLH);
+  ctx.lineTo(botLx,  botL.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#c898b0";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 왼쪽 벽 격자
+  ctx.strokeStyle = "rgba(190,130,160,0.2)";
+  ctx.lineWidth = 0.5;
+  var ri;
+  for (ri = 0; ri <= ROWS; ri++) {
+    var sv = isoXY(0, ri);
+    ctx.beginPath();
+    ctx.moveTo(sv.x - TW / 2, sv.y);
+    ctx.lineTo(sv.x - TW / 2, sv.y - WALLH);
+    ctx.stroke();
+  }
+  var hi;
+  for (hi = 0; hi <= 4; hi++) {
+    var yo1 = (WALLH / 4) * hi;
+    ctx.beginPath();
+    ctx.moveTo(farLx, farC.y - yo1);
+    ctx.lineTo(botLx, botL.y - yo1);
+    ctx.stroke();
+  }
+
+  // 뒷벽 (오른쪽)
+  ctx.fillStyle = "#e8b0c4";
+  ctx.beginPath();
+  ctx.moveTo(farC.x, farTy);
+  ctx.lineTo(farR.x, farR.y - TH / 2);
+  ctx.lineTo(farR.x, farR.y - TH / 2 - WALLH);
+  ctx.lineTo(farC.x, farTy - WALLH);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#c090a8";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 뒷벽 격자
+  ctx.strokeStyle = "rgba(175,110,148,0.18)";
+  ctx.lineWidth = 0.5;
+  var ci;
+  for (ci = 0; ci <= COLS; ci++) {
+    var sc2 = isoXY(ci, 0);
+    ctx.beginPath();
+    ctx.moveTo(sc2.x, sc2.y - TH / 2);
+    ctx.lineTo(sc2.x, sc2.y - TH / 2 - WALLH);
+    ctx.stroke();
+  }
+  for (hi = 0; hi <= 4; hi++) {
+    var yo2 = (WALLH / 4) * hi;
+    ctx.beginPath();
+    ctx.moveTo(farC.x, farTy - yo2);
+    ctx.lineTo(farR.x, farR.y - TH / 2 - yo2);
+    ctx.stroke();
+  }
+
+  // 천장선
+  ctx.strokeStyle = "#c088a0";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(farLx,  farC.y - WALLH);
+  ctx.lineTo(farC.x, farTy - WALLH);
+  ctx.lineTo(farR.x, farR.y - TH / 2 - WALLH);
+  ctx.stroke();
+
+  // 몰딩
+  ctx.strokeStyle = "#d8a0b8";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(farLx,  farC.y - WALLH + 14);
+  ctx.lineTo(farC.x, farTy - WALLH + 14);
+  ctx.lineTo(farR.x, farR.y - TH / 2 - WALLH + 14);
+  ctx.stroke();
+
+  // 걸레받이
+  ctx.strokeStyle = "#e8c0d4";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(farLx,  farC.y - 10);
+  ctx.lineTo(botLx,  botL.y - 10);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(farC.x, farTy - 10);
+  ctx.lineTo(farR.x, farR.y - TH / 2 - 10);
+  ctx.stroke();
+}
+
+// ════════════════════════════════════════════════════
+//  가구 배치 & 드래그
+// ════════════════════════════════════════════════════
+var placed = [];  // {id, key, col, row}
+var selId  = null;
+
+var drag = {
+  on:      false,
+  type:    "",      // "panel" | "canvas"
+  key:     "",
+  id:      0,
+  origCol: 0, origRow: 0,
+  gc: 0, gr: 0,     // ghost col/row
+  over: false       // 마우스가 캔버스 위에 있는가
+};
+
+function spriteAt(item) {
+  var sp = SP[item.key];
+  var s  = isoXY(item.col, item.row);
+  var x  = Math.round(s.x - sp.width / 2);
+  var y  = Math.round(s.y - sp.height + TH / 2);
+  return { x: x, y: y, w: sp.width, h: sp.height };
+}
+
+function tileHL(col, row) {
+  var s = isoXY(col, row);
+  ctx.beginPath();
+  ctx.moveTo(s.x,        s.y - TH / 2);
+  ctx.lineTo(s.x + TW / 2, s.y);
+  ctx.lineTo(s.x,        s.y + TH / 2);
+  ctx.lineTo(s.x - TW / 2, s.y);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(255,100,150,0.28)";
+  ctx.fill();
+  ctx.strokeStyle = "#ff80b0";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawItems() {
+  // 깊이 정렬
+  var list = placed.slice().sort(function(a, b) {
+    var ad = (drag.on && drag.type === "canvas" && drag.id === a.id && drag.over)
+             ? drag.gc + drag.gr : a.col + a.row;
+    var bd = (drag.on && drag.type === "canvas" && drag.id === b.id && drag.over)
+             ? drag.gc + drag.gr : b.col + b.row;
+    return ad - bd;
+  });
+
+  var i;
+  for (i = 0; i < list.length; i++) {
+    var item = list[i];
+    var sp = SP[item.key];
+    if (!sp) continue;
+
+    var col = item.col, row = item.row, alpha = 1;
+    if (drag.on && drag.type === "canvas" && drag.id === item.id && drag.over) {
+      col = drag.gc; row = drag.gr; alpha = 0.7;
+    }
+
+    var s = isoXY(col, row);
+    var ix = Math.round(s.x - sp.width / 2);
+    var iy = Math.round(s.y - sp.height + TH / 2);
+
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(sp, ix, iy);
+    ctx.globalAlpha = 1;
+
+    // 선택 표시
+    if (selId === item.id && !drag.on) {
+      ctx.strokeStyle = "#ff80b0";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 3]);
+      ctx.strokeRect(ix - 2, iy - 2, sp.width + 4, sp.height + 4);
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+function render() {
+  drawRoom();
+  if (drag.on && drag.over) tileHL(drag.gc, drag.gr);
+  drawItems();
+  // 패널에서 드래그 중인 경우 고스트
+  if (drag.on && drag.type === "panel" && drag.over) {
+    var sp = SP[drag.key];
+    if (sp) {
+      var s = isoXY(drag.gc, drag.gr);
+      ctx.globalAlpha = 0.65;
+      ctx.drawImage(sp,
+        Math.round(s.x - sp.width / 2),
+        Math.round(s.y - sp.height + TH / 2)
+      );
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+function updGhost(cx, cy) {
+  drag.over = onCanvas(cx, cy);
+  if (drag.over) {
+    var p2 = clientToCanvas(cx, cy);
+    var g  = xyToIso(p2.x, p2.y);
+    drag.gc = g.col;
+    drag.gr = g.row;
+  }
+}
+
+// ── 캔버스 mousedown ─────────────────────────────────────────────
+canvas.addEventListener("mousedown", function(e) {
+  if (drag.on) return;
+  var cp = clientToCanvas(e.clientX, e.clientY);
+  var i;
+  for (i = placed.length - 1; i >= 0; i--) {
+    var item = placed[i];
+    var sp   = SP[item.key];
+    if (!sp) continue;
+    var pos  = spriteAt(item);
+    if (cp.x >= pos.x && cp.x <= pos.x + pos.w &&
+        cp.y >= pos.y && cp.y <= pos.y + pos.h) {
+      selId = item.id;
+      drag.on = true; drag.type = "canvas";
+      drag.key = item.key; drag.id = item.id;
+      drag.origCol = item.col; drag.origRow = item.row;
+      drag.gc = item.col; drag.gr = item.row; drag.over = true;
+      render();
+      e.preventDefault();
+      return;
+    }
+  }
+  selId = null;
+  render();
+});
+
+// ── 전역 mousemove ───────────────────────────────────────────────
+document.addEventListener("mousemove", function(e) {
+  if (!drag.on) return;
+  updGhost(e.clientX, e.clientY);
+  render();
+});
+
+// ── 전역 mouseup ─────────────────────────────────────────────────
+document.addEventListener("mouseup", function(e) {
+  if (!drag.on) return;
+  updGhost(e.clientX, e.clientY);
+
+  if (drag.over) {
+    if (drag.type === "panel") {
+      var newId = Date.now();
+      placed.push({ id: newId, key: drag.key, col: drag.gc, row: drag.gr });
+      selId = newId;
+      setStatus(FLIST[drag.key] + " 배치 완료!");
+    } else {
+      var it;
+      for (var j = 0; j < placed.length; j++) {
+        if (placed[j].id === drag.id) { it = placed[j]; break; }
+      }
+      if (it) { it.col = drag.gc; it.row = drag.gr; }
+    }
+  } else if (drag.type === "canvas") {
+    var it2;
+    for (var k = 0; k < placed.length; k++) {
+      if (placed[k].id === drag.id) { it2 = placed[k]; break; }
+    }
+    if (it2) { it2.col = drag.origCol; it2.row = drag.origRow; }
+  }
+
+  drag.on = false; drag.type = ""; drag.key = ""; drag.over = false;
+  render();
+});
+
+// ── Delete 키 ────────────────────────────────────────────────────
+window.addEventListener("keydown", function(e) {
+  if ((e.key === "Delete" || e.key === "Backspace") && selId && !drag.on) {
+    var idx = -1, ki;
+    for (ki = 0; ki < placed.length; ki++) {
+      if (placed[ki].id === selId) { idx = ki; break; }
+    }
+    if (idx !== -1) {
+      var name = FLIST[placed[idx].key] || "가구";
+      placed.splice(idx, 1);
+      selId = null;
+      render();
+      setStatus(name + " 제거됨");
+    }
+  }
+});
+
+// ════════════════════════════════════════════════════
+//  가구 목록 & 패널
+// ════════════════════════════════════════════════════
+var FLIST = {
+  bed: "침대", desk: "책상", bookshelf: "책장", sofa: "소파",
+  plant: "화분", rug: "러그", lamp: "조명", mirror: "거울",
+  table: "테이블", window: "창문", poster: "포스터"
+};
+
+function buildPanel() {
+  var grid = document.getElementById("furnitureGrid");
+  var keys = Object.keys(FLIST);
+  var i;
+  for (i = 0; i < keys.length; i++) {
+    (function(key) {
+      var sp = SP[key];
+      if (!sp) return;
+
+      var el   = document.createElement("div");
+      el.className = "furniture-item";
+
+      var PMAX = 66;
+      var sc   = Math.min(PMAX / sp.width, PMAX / sp.height);
+      var pw   = Math.round(sp.width  * sc);
+      var ph   = Math.round(sp.height * sc);
+
+      var pc   = document.createElement("canvas");
+      pc.width = pw; pc.height = ph;
+      pc.style.imageRendering = "pixelated";
+      var pctx = pc.getContext("2d");
+      pctx.imageSmoothingEnabled = false;
+      pctx.drawImage(sp, 0, 0, pw, ph);
+
+      var span = document.createElement("span");
+      span.textContent = FLIST[key];
+
+      el.appendChild(pc);
+      el.appendChild(span);
+      grid.appendChild(el);
+
+      el.addEventListener("mousedown", function(e) {
+        e.preventDefault();
+        drag.on = true; drag.type = "panel";
+        drag.key = key; drag.over = false;
+        render();
+      });
+    })(keys[i]);
+  }
+}
+
+// ── UI ──────────────────────────────────────────────────────────
+function setStatus(msg) {
+  var el = document.getElementById("statusBar");
+  if (el) el.textContent = msg;
+}
+
+document.getElementById("btnFurniture").addEventListener("click", function() {
+  document.getElementById("furniturePanel").classList.toggle("hidden");
+});
+document.getElementById("closePanel").addEventListener("click", function() {
+  document.getElementById("furniturePanel").classList.add("hidden");
+});
+document.getElementById("btnSave").addEventListener("click", function() {
+  try {
+    localStorage.setItem("innera_room", JSON.stringify(placed));
+    setStatus("저장 완료! ✓");
+    setTimeout(function() {
+      setStatus("우상단 [가구] 버튼으로 패널 열기 → 드래그로 배치 | 선택 후 Delete로 삭제");
+    }, 2000);
+  } catch(err) {
+    setStatus("저장 실패: " + err.message);
+  }
+});
+document.getElementById("btnClear").addEventListener("click", function() {
+  placed.length = 0;
+  selId = null;
+  render();
+  setStatus("초기화 완료");
+});
+
+// ── 초기화 ──────────────────────────────────────────────────────
+try {
+  var saved = localStorage.getItem("innera_room");
+  if (saved) {
+    var arr = JSON.parse(saved);
+    var si;
+    for (si = 0; si < arr.length; si++) placed.push(arr[si]);
+  }
+} catch(e2) { /* 무시 */ }
+
+buildPanel();
+render();
+setStatus("우상단 [가구] 버튼으로 패널 열기 → 드래그로 배치 | 선택 후 Delete로 삭제");
+  </script>
 </body>
 </html>
