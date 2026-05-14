@@ -11,38 +11,27 @@
     <header class="top-bar">
       <div class="logo">INNĒRA</div>
       <div class="header-actions">
-        <button id="btnFurniture" class="icon-btn" title="가구 패널">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="2" y="7" width="20" height="14" rx="2"/>
-            <path d="M6 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/>
-            <line x1="12" y1="12" x2="12" y2="16"/>
-            <line x1="10" y1="14" x2="14" y2="14"/>
-          </svg>
-          가구
-        </button>
-        <button id="btnSave" class="icon-btn save-btn" title="저장">저장</button>
+        <button id="btnFurniture" class="icon-btn">🛋 가구</button>
+        <button id="btnClear" class="icon-btn">🗑 초기화</button>
+        <button id="btnSave" class="icon-btn save-btn">💾 저장</button>
       </div>
     </header>
 
     <div class="room-wrap">
       <canvas id="roomCanvas"></canvas>
 
-      <!-- 가구 패널 -->
       <div id="furniturePanel" class="furniture-panel hidden">
         <div class="panel-header">
           <span>가구 선택</span>
           <button id="closePanel">✕</button>
         </div>
+        <div class="hint">가구를 클릭 후 방으로 드래그하세요</div>
         <div class="furniture-grid" id="furnitureGrid"></div>
       </div>
-
-      <!-- 드래그 중인 가구 고스트 -->
-      <canvas id="ghostCanvas" class="ghost-canvas"></canvas>
     </div>
 
-    <div class="status-bar" id="statusBar">방을 꾸며보세요! 가구를 드래그해서 배치하세요.</div>
+    <div class="status-bar" id="statusBar">우상단 [가구] 버튼을 눌러 가구를 배치하세요!</div>
   </div>
-
   <script src="script.js"></script>
 </body>
 </html>
