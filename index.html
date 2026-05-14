@@ -3,53 +3,44 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>INNERA Square</title>
+  <title>INNERA - 방꾸미기</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="app-shell">
+  <div id="app">
     <header class="top-bar">
-      <div class="title">INNĒRA</div>
-      <div class="header-right">
-        <span class="pill">SQUARE</span>
-        <span class="pill active">ACTIVE</span>
+      <div class="logo">INNĒRA</div>
+      <div class="header-actions">
+        <button id="btnFurniture" class="icon-btn" title="가구 패널">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="7" width="20" height="14" rx="2"/>
+            <path d="M6 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/>
+            <line x1="12" y1="12" x2="12" y2="16"/>
+            <line x1="10" y1="14" x2="14" y2="14"/>
+          </svg>
+          가구
+        </button>
+        <button id="btnSave" class="icon-btn save-btn" title="저장">저장</button>
       </div>
     </header>
 
-    <main>
-      <section class="content-panel">
-        <div class="canvas-frame">
-          <canvas id="squareCanvas" width="960" height="760"></canvas>
-          <div class="screen-label">INNĒRA SQUARE</div>
+    <div class="room-wrap">
+      <canvas id="roomCanvas"></canvas>
+
+      <!-- 가구 패널 -->
+      <div id="furniturePanel" class="furniture-panel hidden">
+        <div class="panel-header">
+          <span>가구 선택</span>
+          <button id="closePanel">✕</button>
         </div>
+        <div class="furniture-grid" id="furnitureGrid"></div>
+      </div>
 
-        <aside class="info-panel">
-          <h2>아이소메트릭 광장</h2>
-          <p>이 데모는 이미지 기반 광장 레이아웃을 참고해 제작된 아이소메트릭 타일 맵입니다.</p>
-          <ul>
-            <li>화살표 또는 WASD로 선택된 캐릭터 이동</li>
-            <li>클릭으로 캐릭터 선택</li>
-            <li>사물은 통과 불가</li>
-            <li>도트픽셀 캐릭터 디자인은 추후 교체 가능</li>
-          </ul>
+      <!-- 드래그 중인 가구 고스트 -->
+      <canvas id="ghostCanvas" class="ghost-canvas"></canvas>
+    </div>
 
-          <div class="legend-box">
-            <h3>레이어</h3>
-            <div class="legend-item"><span class="legend-color floor"></span>바닥</div>
-            <div class="legend-item"><span class="legend-color bench"></span>벤치 / 가로등</div>
-            <div class="legend-item"><span class="legend-color tree"></span>나무</div>
-            <div class="legend-item"><span class="legend-color building"></span>건물 외벽</div>
-            <div class="legend-item"><span class="legend-color monument"></span>중앙 오브젝트</div>
-          </div>
-
-          <div class="controls-box">
-            <h3>컨트롤</h3>
-            <p>캐릭터를 클릭 또는 터치하여 선택합니다.</p>
-            <p>이동 키: <strong>← ↑ ↓ → / A W S D</strong></p>
-          </div>
-        </aside>
-      </section>
-    </main>
+    <div class="status-bar" id="statusBar">방을 꾸며보세요! 가구를 드래그해서 배치하세요.</div>
   </div>
 
   <script src="script.js"></script>
